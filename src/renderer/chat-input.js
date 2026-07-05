@@ -35,6 +35,7 @@ chatForm.addEventListener("submit", async (event) => {
 });
 
 chatInput.addEventListener("input", () => {
+  syncSelectedMentionFromValue();
   syncMentionMenu();
   resizeInput();
 });
@@ -76,6 +77,8 @@ chatForm.addEventListener("drop", async (event) => {
 });
 
 chatInput.addEventListener("keydown", (event) => {
+  if (handleAtomicMentionDelete(event)) return;
+
   if (event.key === "Escape" && !mentionMenu.hidden) {
     closeMentionMenu();
     event.preventDefault();
@@ -226,6 +229,75 @@ function chooseMention(button) {
   resizeInput();
   chatInput.focus();
   chatInput.setSelectionRange(chatInput.value.length, chatInput.value.length);
+}
+
+function handleAtomicMentionDelete(event) {
+  if (event.key !== "Backspace" && event.key !== "Delete") return false;
+
+  const token = getSelectedMentionToken();
+  if (!token) return false;
+
+  const selectionStart = chatInput.selectionStart ?? 0;
+  const selectionEnd = chatInput.selectionEnd ?? selectionStart;
+  const collapsed = selectionStart === selectionEnd;
+  const touchesToken = collapsed
+    ? cursorDeleteTouchesToken(event.key, selectionStart, token)
+    : rangesOverlap(selectionStart, selectionEnd, token.start, token.end);
+
+  if (!touchesToken) return false;
+
+  const deleteStart = collapsed ? token.start : Math.min(selectionStart, token.start);
+  const deleteEnd = collapsed ? token.end : Math.max(selectionEnd, token.end);
+  chatInput.value = `${chatInput.value.slice(0, deleteStart)}${chatInput.value.slice(deleteEnd)}`;
+  chatInput.setSelectionRange(deleteStart, deleteStart);
+  clearSelectedMention();
+  closeMentionMenu();
+  resizeInput();
+  event.preventDefault();
+  return true;
+}
+
+function cursorDeleteTouchesToken(key, cursor, token) {
+  if (key === "Backspace") return cursor > token.start && cursor <= token.end;
+  return cursor >= token.start && cursor < token.end;
+}
+
+function rangesOverlap(startA, endA, startB, endB) {
+  return startA < endB && endA > startB;
+}
+
+function getSelectedMentionToken() {
+  if (!selectedTarget || !selectedSkillId) return null;
+
+  const tokenText = `@${selectedTarget} `;
+  const start = chatInput.value.indexOf(tokenText);
+  if (start === -1) return null;
+
+  return {
+    start,
+    end: start + tokenText.length,
+    text: tokenText,
+    skillId: selectedSkillId
+  };
+}
+
+function syncSelectedMentionFromValue() {
+  if (getSelectedMentionToken()) return;
+
+  const skillId = findMentionedSkillId(chatInput.value);
+  if (skillId) {
+    const skill = skills.find((item) => item.id === skillId);
+    selectedTarget = skill?.name || null;
+    selectedSkillId = skillId;
+    return;
+  }
+
+  clearSelectedMention();
+}
+
+function clearSelectedMention() {
+  selectedTarget = null;
+  selectedSkillId = null;
 }
 
 function findMentionedSkillId(message) {
