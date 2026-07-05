@@ -719,7 +719,7 @@ function updateThinkingElapsed() {
 }
 
 function getThinkingMessage(elapsedSeconds) {
-  return `正在处理中...（${elapsedSeconds}s）`;
+  return `正在处理中（${elapsedSeconds}s）`;
 }
 
 function sendTerminalOutput(chunk) {
