@@ -1,29 +1,25 @@
 const settingsForm = document.getElementById("settingsForm");
+const skillsPanel = document.getElementById("skillsPanel");
+const skillEditorPage = document.getElementById("skillEditorPage");
+const editorActions = document.getElementById("editorActions");
+const toggleSkillEditorButton = document.getElementById("toggleSkillEditor");
+const cancelSkillEditorButton = document.getElementById("cancelSkillEditor");
 const skillNameInput = document.getElementById("skillName");
 const skillPathInput = document.getElementById("skillPath");
 const chooseSkillFolderButton = document.getElementById("chooseSkillFolder");
 const addSkillButton = document.getElementById("addSkill");
 const skillsList = document.getElementById("skillsList");
-const cancelSettingsButton = document.getElementById("cancelSettings");
 const statusText = document.getElementById("status");
 let skills = [];
 
 loadSettings();
 
-settingsForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  statusText.textContent = "";
-
-  await window.pet.saveSettings({
-    skills
-  });
-
-  statusText.textContent = "已保存";
-  setTimeout(() => window.pet.closeWindow(), 250);
+toggleSkillEditorButton.addEventListener("click", () => {
+  openSkillEditor();
 });
 
-cancelSettingsButton.addEventListener("click", () => {
-  window.pet.closeWindow();
+cancelSkillEditorButton.addEventListener("click", () => {
+  closeSkillEditor();
 });
 
 chooseSkillFolderButton.addEventListener("click", async () => {
@@ -37,7 +33,7 @@ chooseSkillFolderButton.addEventListener("click", async () => {
   skillNameInput.focus();
 });
 
-addSkillButton.addEventListener("click", () => {
+addSkillButton.addEventListener("click", async () => {
   const folderPath = skillPathInput.value.trim();
   if (!folderPath) {
     statusText.textContent = "请先选择技能文件夹";
@@ -62,7 +58,9 @@ addSkillButton.addEventListener("click", () => {
 
   skillNameInput.value = "";
   skillPathInput.value = "";
+  closeSkillEditor();
   renderSkills();
+  await saveSkills();
 });
 
 skillsList.addEventListener("click", (event) => {
@@ -72,13 +70,33 @@ skillsList.addEventListener("click", (event) => {
   skills = skills.filter((skill) => skill.id !== removeButton.dataset.removeSkill);
   renderSkills();
   statusText.textContent = "已移除技能";
+  saveSkills();
 });
 
 async function loadSettings() {
   const settings = await window.pet.getSettings();
   skills = Array.isArray(settings.skills) ? settings.skills : [];
   renderSkills();
-  skillNameInput.focus();
+}
+
+function openSkillEditor() {
+  skillsPanel.hidden = true;
+  skillEditorPage.hidden = false;
+  editorActions.hidden = false;
+  statusText.textContent = "";
+  requestAnimationFrame(() => skillNameInput.focus());
+}
+
+function closeSkillEditor() {
+  skillsPanel.hidden = false;
+  skillEditorPage.hidden = true;
+  editorActions.hidden = true;
+  skillNameInput.value = "";
+  skillPathInput.value = "";
+}
+
+async function saveSkills() {
+  await window.pet.saveSettings({ skills });
 }
 
 function renderSkills() {
@@ -91,6 +109,10 @@ function renderSkills() {
     ...skills.map((skill) => {
       const item = document.createElement("div");
       item.className = "skill-item";
+
+      const mark = document.createElement("div");
+      mark.className = "skill-mark";
+      mark.textContent = "技";
 
       const content = document.createElement("div");
       content.className = "skill-content";
@@ -112,7 +134,7 @@ function renderSkills() {
       removeButton.textContent = "×";
 
       content.append(name, folderPath);
-      item.append(content, removeButton);
+      item.append(mark, content, removeButton);
       return item;
     })
   );

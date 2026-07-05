@@ -1,5 +1,7 @@
 node_modules/
 dist/
+!src/renderer/settings-app/dist/
+!src/renderer/settings-app/dist/**
 
 .DS_Store
 *.log

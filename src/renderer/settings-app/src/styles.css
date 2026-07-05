@@ -1,0 +1,114 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  color: #1f2937;
+  background: #f5f7fa;
+}
+
+.settings-shell {
+  height: 100%;
+  padding: 18px;
+}
+
+.skills-page,
+.editor-page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  height: 100%;
+}
+
+.editor-page {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.skills-surface,
+.editor-surface {
+  min-height: 0;
+  padding: 12px;
+  border: 1px solid rgba(31, 92, 154, 0.1);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(31, 61, 91, 0.06);
+}
+
+.skills-surface {
+  overflow: hidden;
+}
+
+.skills-list {
+  height: 100%;
+  overflow: auto;
+}
+
+.skills-list .ant-list-item {
+  min-height: 58px;
+  padding: 9px 8px;
+  border-block-end: 1px solid rgba(31, 92, 154, 0.08) !important;
+}
+
+.skills-list .ant-list-item:last-child {
+  border-block-end: 0 !important;
+}
+
+.skill-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  color: #2f7dd1;
+  background: rgba(47, 125, 209, 0.1);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.skill-name {
+  display: block;
+  overflow: hidden;
+  color: #1f2937;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-path {
+  display: block;
+  overflow: hidden;
+  color: #64748b;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-surface {
+  align-self: start;
+}
+
+.editor-actions {
+  display: flex;
+  justify-content: flex-end;
+}

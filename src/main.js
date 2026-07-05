@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, protocol, screen, dialog } = require("electron");
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, protocol, screen, dialog, clipboard } = require("electron");
 const { spawn } = require("child_process");
 const fs = require("fs/promises");
 const pty = require("node-pty");
@@ -19,6 +19,8 @@ let dragTimer = null;
 let conversationHistory = [];
 let replyPayload = null;
 let petVisualState = "idle";
+let thinkingTimer = null;
+let thinkingStartedAt = 0;
 
 const chatPanelWidth = 320;
 const replyPanelHeight = 260;
@@ -52,6 +54,7 @@ const maxDroppedTextLength = 50000;
 const maxDroppedImageBytes = 8 * 1024 * 1024;
 const hermesPythonPath = "/Users/luke/.hermes/hermes-agent/venv/bin/python";
 const hermesModuleName = "hermes_cli.main";
+const hermesInstallMessage = "需要完成hermes安装我才能帮你处理工作哦～";
 const hermesTimeoutMs = 180000;
 const maxHermesPromptLength = 120000;
 const maxHermesProgressLines = 18;
@@ -148,6 +151,20 @@ function showPetMenu() {
   buildAppMenu().popup({ window: petWindow });
 }
 
+function showReplyImageMenu(sender, imageUrl) {
+  const sourceWindow = BrowserWindow.fromWebContents(sender) || replyWindow || petWindow;
+  Menu.buildFromTemplate([
+    {
+      label: "复制图片",
+      click: () => copyReplyImage(imageUrl)
+    },
+    {
+      label: "下载图片",
+      click: () => downloadReplyImage(imageUrl, sourceWindow)
+    }
+  ]).popup({ window: sourceWindow });
+}
+
 function buildAppMenu() {
   return Menu.buildFromTemplate([
     {
@@ -156,7 +173,7 @@ function buildAppMenu() {
     },
     { type: "separator" },
     {
-      label: "设置",
+      label: "技能",
       click: openSettingsWindow
     },
     {
@@ -233,13 +250,13 @@ function openSettingsWindow() {
 
   settingsWindow = new BrowserWindow({
     width: 520,
-    height: 420,
+    height: 480,
     parent: petWindow,
     modal: false,
     resizable: false,
     minimizable: false,
     maximizable: false,
-    title: "桌宠设置",
+    title: "桌宠技能",
     backgroundColor: "#ffffff",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -249,10 +266,16 @@ function openSettingsWindow() {
   });
 
   settingsWindow.setMenuBarVisibility(false);
-  settingsWindow.loadFile(path.join(__dirname, "renderer", "settings.html"));
+  settingsWindow.loadFile(getSettingsPagePath());
   settingsWindow.on("closed", () => {
     settingsWindow = null;
   });
+}
+
+function getSettingsPagePath() {
+  const builtSettingsPath = path.join(__dirname, "renderer", "settings-app", "dist", "index.html");
+  if (require("fs").existsSync(builtSettingsPath)) return builtSettingsPath;
+  return path.join(__dirname, "renderer", "settings.html");
 }
 
 function openHistoryWindow() {
@@ -325,11 +348,11 @@ app.whenReady().then(() => {
   }
 
   protocol.handle("pet", async (request) => {
-    const imageFilePath = getPetImagePath(new URL(request.url).pathname);
-    const image = await fs.readFile(imageFilePath);
-    return new Response(image, {
+    const assetFilePath = getPetAssetPath(new URL(request.url));
+    const asset = await fs.readFile(assetFilePath);
+    return new Response(asset, {
       headers: {
-        "Content-Type": getContentType(imageFilePath),
+        "Content-Type": getContentType(assetFilePath),
         "Cache-Control": "no-store"
       }
     });
@@ -364,6 +387,7 @@ ipcMain.handle("chat:submit", (_event, message) => submitChatMessage(message));
 ipcMain.handle("reply:get-current", () => replyPayload);
 ipcMain.handle("pet:get-state", () => petVisualState);
 ipcMain.on("pet:show-menu", () => showPetMenu());
+ipcMain.on("reply:image-menu", (event, imageUrl) => showReplyImageMenu(event.sender, imageUrl));
 ipcMain.on("pet:open-input", () => openInputWindow());
 ipcMain.on("chat:close-input", () => closeInputWindow());
 ipcMain.on("chat:close-reply", () => closeReplyWindow());
@@ -473,9 +497,14 @@ function openReplyWindow(message, isThinking = false) {
   setPetVisualState(isThinking ? "thinking" : "idle");
 
   replyPayload = {
-    message,
+    message: isThinking ? getThinkingMessage(0) : message,
     thinking: isThinking
   };
+  if (isThinking) {
+    startThinkingTimer();
+  } else {
+    stopThinkingTimer();
+  }
   replyWindow = createOverlayWindow(replyPanelHeight);
   const currentReplyWindow = replyWindow;
   loadReplyWindow();
@@ -574,6 +603,7 @@ function closeInputWindow() {
 }
 
 function closeReplyWindow() {
+  stopThinkingTimer();
   if (replyWindow && !replyWindow.isDestroyed()) {
     replyWindow.close();
   }
@@ -629,6 +659,7 @@ function submitTerminalInstruction(message) {
 }
 
 function updateReplyWindow(message) {
+  stopThinkingTimer();
   setPetVisualState("idle");
   replyPayload = {
     message,
@@ -662,6 +693,35 @@ function pushReplyPayload() {
   replyWindow.webContents.send("reply:update", replyPayload);
 }
 
+function startThinkingTimer() {
+  stopThinkingTimer();
+  thinkingStartedAt = Date.now();
+  updateThinkingElapsed();
+  thinkingTimer = setInterval(updateThinkingElapsed, 1000);
+}
+
+function stopThinkingTimer() {
+  if (thinkingTimer) {
+    clearInterval(thinkingTimer);
+    thinkingTimer = null;
+  }
+  thinkingStartedAt = 0;
+}
+
+function updateThinkingElapsed() {
+  if (!replyPayload?.thinking || !thinkingStartedAt) return;
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - thinkingStartedAt) / 1000));
+  replyPayload = {
+    message: getThinkingMessage(elapsedSeconds),
+    thinking: true
+  };
+  pushReplyPayload();
+}
+
+function getThinkingMessage(elapsedSeconds) {
+  return `正在处理中...（${elapsedSeconds}s）`;
+}
+
 function sendTerminalOutput(chunk) {
   if (terminalWindow && !terminalWindow.isDestroyed()) {
     terminalWindow.webContents.send("terminal:output", String(chunk));
@@ -669,16 +729,17 @@ function sendTerminalOutput(chunk) {
 }
 
 function setPetVisualState(state) {
-  const nextState = state === "thinking" ? "thinking" : "idle";
-  if (petVisualState === nextState) return;
+  const nextState = ["thinking", "working", "office"].includes(state) ? "thinking" : "idle";
+  const shouldNotify = petVisualState !== nextState;
   petVisualState = nextState;
-  if (petWindow && !petWindow.isDestroyed()) {
+  if ((shouldNotify || nextState === "thinking") && petWindow && !petWindow.isDestroyed()) {
     petWindow.webContents.send("pet:visual-state", petVisualState);
   }
 }
 
-function getPetImagePath(urlPathname) {
-  if (urlPathname.includes("thinking")) return thinkingImagePath;
+function getPetAssetPath(url) {
+  const urlParts = [url.hostname, url.pathname, url.href].join(" ");
+  if (urlParts.includes("thinking")) return thinkingImagePath;
   return imagePath;
 }
 
@@ -862,7 +923,7 @@ async function sendChatMessage(payload) {
 async function submitChatMessage(payload) {
   closeInputWindow();
   setPetVisualState("thinking");
-  openReplyWindow("思考中", true);
+  openReplyWindow(getThinkingMessage(0), true);
 
   try {
     const reply = await sendChatMessage(payload);
@@ -870,7 +931,7 @@ async function submitChatMessage(payload) {
     setPetVisualState("idle");
     return reply;
   } catch (error) {
-    const errorMessage = error?.message || "对话请求失败，请检查设置后再试。";
+    const errorMessage = error?.message || "对话请求失败，请稍后再试。";
     updateReplyWindow(errorMessage);
     setPetVisualState("idle");
     return errorMessage;
@@ -945,13 +1006,15 @@ function buildHermesPrompt(prompt, attachments, skill, skillContext) {
 }
 
 async function runHermesChat(prompt, attachments) {
+  const hermesCommand = await resolveHermesCommand();
+  if (!hermesCommand) return hermesInstallMessage;
+
   const sessionId = await readHermesSessionId();
   const imagePaths = attachments
     .filter((attachment) => attachment.kind === "image" && attachment.path)
     .map((attachment) => attachment.path);
   const args = [
-    "-m",
-    hermesModuleName,
+    ...hermesCommand.argsPrefix,
     "chat",
     "-q",
     prompt,
@@ -973,14 +1036,14 @@ async function runHermesChat(prompt, attachments) {
     updateThinkingProgress("Hermes 正在启动会话");
   }
   let progressTracker = createHermesProgressTracker();
-  let result = await runHermesCommand(args, progressTracker.onChunk);
+  let result = await runHermesCommand(hermesCommand.command, args, progressTracker.onChunk);
   progressTracker.flush();
   if (sessionId && isMissingHermesSession(result)) {
     await clearHermesSessionId();
     const retryArgs = args.filter((arg, index) => arg !== "--resume" && args[index - 1] !== "--resume");
     updateThinkingProgress("原会话不可用，Hermes 正在新建会话");
     progressTracker = createHermesProgressTracker();
-    result = await runHermesCommand(retryArgs, progressTracker.onChunk);
+    result = await runHermesCommand(hermesCommand.command, retryArgs, progressTracker.onChunk);
     progressTracker.flush();
   }
   const parsed = parseHermesOutput([result.stdout, result.stderr].filter(Boolean).join("\n"));
@@ -1028,23 +1091,13 @@ function updateHermesProgressLine(line) {
 }
 
 function updateThinkingProgress(line) {
-  if (!replyPayload?.thinking) return;
-  const currentLines = String(replyPayload.message || "")
-    .split("\n")
-    .map((item) => item.trim())
-    .filter(Boolean);
-  const nextLine = String(line || "").trim();
-  if (!nextLine || isHiddenHermesProgressLine(nextLine) || currentLines[currentLines.length - 1] === nextLine) return;
-  const nextLines = [...currentLines, nextLine].slice(-maxHermesProgressLines);
-  replyPayload = {
-    message: nextLines.join("\n"),
-    thinking: true
-  };
-  pushReplyPayload();
+  updateThinkingElapsed();
 }
 
 function isHiddenHermesProgressLine(line) {
-  return /^(Hermes 正在接收消息|Hermes 正在恢复会话)$/i.test(String(line || "").trim());
+  return /^(Hermes 正在接收消息|Hermes 正在恢复会话|Hermes 正在初始化|Hermes 已恢复上下文)$/i.test(
+    String(line || "").trim()
+  );
 }
 
 function cleanHermesOutputLine(line) {
@@ -1078,9 +1131,55 @@ function isHermesProgressLine(line) {
   return true;
 }
 
-function runHermesCommand(args, onProgress) {
+async function resolveHermesCommand() {
+  if (await isExecutableFile(hermesPythonPath)) {
+    return {
+      command: hermesPythonPath,
+      argsPrefix: ["-m", hermesModuleName]
+    };
+  }
+
+  const hermesPath = await findExecutableInPath("hermes");
+  if (!hermesPath) return null;
+  return {
+    command: hermesPath,
+    argsPrefix: []
+  };
+}
+
+async function findExecutableInPath(commandName) {
+  const seen = new Set();
+  const searchDirs = [
+    ...(process.env.PATH || "").split(path.delimiter),
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/usr/bin",
+    "/bin",
+    path.join(process.env.HOME || "", ".local", "bin"),
+    path.join(process.env.HOME || "", ".hermes", "bin")
+  ].filter(Boolean);
+
+  for (const dir of searchDirs) {
+    if (seen.has(dir)) continue;
+    seen.add(dir);
+    const candidate = path.join(dir, commandName);
+    if (await isExecutableFile(candidate)) return candidate;
+  }
+  return null;
+}
+
+async function isExecutableFile(filePath) {
+  try {
+    await fs.access(filePath, require("fs").constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function runHermesCommand(command, args, onProgress) {
   return new Promise((resolve, reject) => {
-    const child = spawn(hermesPythonPath, args, {
+    const child = spawn(command, args, {
       cwd: process.cwd(),
       env: {
         ...process.env,
@@ -1332,11 +1431,107 @@ function getConversationHistory() {
   return conversationHistory.map((message) => ({ ...message }));
 }
 
+async function copyReplyImage(imageUrl) {
+  try {
+    const { buffer } = await readReplyImage(imageUrl);
+    const image = nativeImage.createFromBuffer(buffer);
+    if (image.isEmpty()) {
+      throw new Error("图片格式无法复制到剪贴板");
+    }
+    clipboard.writeImage(image);
+  } catch (error) {
+    showImageActionError("复制图片失败", error);
+  }
+}
+
+async function downloadReplyImage(imageUrl, sourceWindow) {
+  try {
+    const image = await readReplyImage(imageUrl);
+    const { canceled, filePath } = await dialog.showSaveDialog(sourceWindow, {
+      title: "下载图片",
+      defaultPath: getDefaultImageFilename(imageUrl, image.contentType),
+      filters: [
+        { name: "图片", extensions: ["png", "jpg", "jpeg", "webp", "gif"] },
+        { name: "所有文件", extensions: ["*"] }
+      ]
+    });
+    if (canceled || !filePath) return;
+    await fs.writeFile(filePath, image.buffer);
+  } catch (error) {
+    showImageActionError("下载图片失败", error);
+  }
+}
+
+async function readReplyImage(imageUrl) {
+  const url = String(imageUrl || "").trim();
+  if (!url) throw new Error("图片地址为空");
+
+  if (url.startsWith("data:image/")) {
+    const match = url.match(/^data:(image\/[^;,]+);base64,(.+)$/i);
+    if (!match) throw new Error("无法解析图片数据");
+    return {
+      buffer: Buffer.from(match[2], "base64"),
+      contentType: match[1].toLowerCase()
+    };
+  }
+
+  if (url.startsWith("file://")) {
+    const filePath = decodeURIComponent(new URL(url).pathname);
+    return {
+      buffer: await fs.readFile(filePath),
+      contentType: getContentType(filePath)
+    };
+  }
+
+  if (url.startsWith("/")) {
+    return {
+      buffer: await fs.readFile(url),
+      contentType: getContentType(url)
+    };
+  }
+
+  if (/^https?:\/\//i.test(url)) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return {
+      buffer: Buffer.from(await response.arrayBuffer()),
+      contentType: response.headers.get("content-type") || getContentType(new URL(url).pathname)
+    };
+  }
+
+  throw new Error("不支持的图片地址");
+}
+
+function getDefaultImageFilename(imageUrl, contentType) {
+  const fallbackExt = getImageExtensionFromContentType(contentType);
+  try {
+    const url = new URL(imageUrl);
+    const baseName = path.basename(decodeURIComponent(url.pathname));
+    if (baseName && path.extname(baseName)) return baseName;
+  } catch {
+    const baseName = path.basename(String(imageUrl || ""));
+    if (baseName && path.extname(baseName)) return baseName;
+  }
+  return `pet-reply-image-${Date.now()}${fallbackExt}`;
+}
+
+function getImageExtensionFromContentType(contentType) {
+  if (/webp/i.test(contentType || "")) return ".webp";
+  if (/gif/i.test(contentType || "")) return ".gif";
+  if (/jpe?g/i.test(contentType || "")) return ".jpg";
+  return ".png";
+}
+
+function showImageActionError(title, error) {
+  dialog.showErrorBox(title, error?.message || "图片处理失败");
+}
+
 function getContentType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   if (ext === ".png") return "image/png";
   if (ext === ".gif") return "image/gif";
   if (ext === ".webp") return "image/webp";
   if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".mp4") return "video/mp4";
   return "application/octet-stream";
 }

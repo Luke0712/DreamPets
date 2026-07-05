@@ -70,7 +70,6 @@ chatForm.addEventListener("drop", async (event) => {
 
   const preparedFiles = await window.pet.prepareDroppedFiles(filePaths);
   attachments = mergeAttachments(attachments, preparedFiles);
-  insertDroppedFileText(preparedFiles);
   renderAttachments();
   resizeInput();
   chatInput.focus();

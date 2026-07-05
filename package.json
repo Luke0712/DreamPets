@@ -5,9 +5,10 @@
   "description": "A tiny transparent desktop pet powered by Electron.",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron .",
-    "pack": "electron-builder --mac dir",
-    "dist": "electron-builder --mac"
+    "start": "npm run build:settings && electron .",
+    "pack": "npm run build:settings && electron-builder --mac dir",
+    "dist": "npm run build:settings && electron-builder --mac",
+    "build:settings": "vite build src/renderer/settings-app --config src/renderer/settings-app/vite.config.js"
   },
   "build": {
     "appId": "com.luke.qq-desktop-pet",
@@ -41,12 +42,18 @@
     }
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.3",
     "electron": "^31.7.7",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "vite": "^8.1.3"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.3.2",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
-    "node-pty": "^1.1.0"
+    "antd": "^6.5.0",
+    "node-pty": "^1.1.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   }
 }

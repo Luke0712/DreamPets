@@ -29,7 +29,9 @@ function renderReply(payload) {
   thinking.textContent = isThinking ? String(payload?.message || "思考中") : "";
   const message = isThinking ? "" : String(payload?.message || "");
   const imageUrls = extractImageUrls(message);
-  replyText.textContent = removeMarkdownImageSyntax(message).trim();
+  const visibleText = removeRenderedImageReferences(message).trim();
+  replyText.textContent = visibleText;
+  replyText.hidden = !visibleText;
   renderImages(imageUrls);
 }
 
@@ -72,10 +74,17 @@ function normalizeImageUrl(url) {
   return trimmedUrl;
 }
 
-function removeMarkdownImageSyntax(message) {
+function removeRenderedImageReferences(message) {
   return String(message || "")
-    .replace(/!\[[^\]]*]\(([^)]+)\)/g, "$1")
-    .replace(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi, "$1");
+    .replace(/!\[[^\]]*]\(([^)]+)\)/g, "")
+    .replace(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi, "")
+    .replace(/\bhttps?:\/\/[^\s<>)"']+\.(?:png|jpe?g|webp|gif)(?:\?[^\s<>)"']*)?/gi, "")
+    .replace(/\bhttps?:\/\/[^\s<>)"']*(?:image|img|photo|picture|cdn|output|generated)[^\s<>)"']*/gi, "")
+    .replace(/\bfile:\/\/[^\s<>)"']+\.(?:png|jpe?g|webp|gif)/gi, "")
+    .replace(/\/[^\s<>)"']+\.(?:png|jpe?g|webp|gif)/gi, "")
+    .replace(/\bdata:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+/gi, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n");
 }
 
 function renderImages(imageUrls) {
@@ -87,6 +96,10 @@ function renderImages(imageUrls) {
     image.src = imageUrl;
     image.alt = "";
     image.loading = "lazy";
+    image.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      window.pet.showReplyImageMenu(imageUrl);
+    });
     image.addEventListener("error", () => {
       image.replaceWith(createImageError(imageUrl));
     });

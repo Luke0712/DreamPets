@@ -26,8 +26,8 @@ window.pet.onScale((scale) => {
 
 function setPetImage(state) {
   const nextSrc = state === "thinking" ? window.pet.thinkingImageUrl : window.pet.imageUrl;
-  if (petImage.src !== nextSrc) {
-    petImage.src = nextSrc;
+  if (!petImage.src.includes(nextSrc)) {
+    petImage.src = `${nextSrc}?v=${Date.now()}`;
   }
 }
 
