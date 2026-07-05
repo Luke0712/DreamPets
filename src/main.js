@@ -968,12 +968,16 @@ async function runHermesChat(prompt, attachments) {
   }
 
   updateThinkingProgress(sessionId ? "Hermes 正在恢复会话" : "Hermes 正在启动会话");
-  let result = await runHermesCommand(args, updateHermesProgressFromChunk);
+  let progressTracker = createHermesProgressTracker();
+  let result = await runHermesCommand(args, progressTracker.onChunk);
+  progressTracker.flush();
   if (sessionId && isMissingHermesSession(result)) {
     await clearHermesSessionId();
     const retryArgs = args.filter((arg, index) => arg !== "--resume" && args[index - 1] !== "--resume");
     updateThinkingProgress("原会话不可用，Hermes 正在新建会话");
-    result = await runHermesCommand(retryArgs, updateHermesProgressFromChunk);
+    progressTracker = createHermesProgressTracker();
+    result = await runHermesCommand(retryArgs, progressTracker.onChunk);
+    progressTracker.flush();
   }
   const parsed = parseHermesOutput([result.stdout, result.stderr].filter(Boolean).join("\n"));
   if (parsed.sessionId) {
@@ -991,13 +995,31 @@ function isMissingHermesSession(result) {
   return result.code !== 0 && /No session found matching/i.test([result.stdout, result.stderr].filter(Boolean).join("\n"));
 }
 
-function updateHermesProgressFromChunk(chunk) {
-  const progressLines = String(chunk || "")
-    .split(/\r?\n/)
-    .map(cleanHermesOutputLine)
-    .filter(isHermesProgressLine);
-  for (const line of progressLines) {
-    updateThinkingProgress(line);
+function createHermesProgressTracker() {
+  let pending = "";
+
+  return {
+    onChunk: (chunk) => {
+      pending += String(chunk || "");
+      const lines = pending.split(/\r?\n/);
+      pending = lines.pop() || "";
+      for (const line of lines) {
+        updateHermesProgressLine(line);
+      }
+    },
+    flush: () => {
+      if (pending) {
+        updateHermesProgressLine(pending);
+        pending = "";
+      }
+    }
+  };
+}
+
+function updateHermesProgressLine(line) {
+  const progressLine = toHermesProgressLine(line);
+  if (progressLine) {
+    updateThinkingProgress(progressLine);
   }
 }
 
@@ -1025,19 +1047,27 @@ function cleanHermesOutputLine(line) {
     .trim();
 }
 
+function toHermesProgressLine(line) {
+  const cleanLine = cleanHermesOutputLine(line);
+  if (!isHermesProgressLine(cleanLine)) return "";
+  if (/^Initializing agent/i.test(cleanLine)) return "Hermes 正在初始化";
+  if (/^↻\s*Resumed session\b/i.test(cleanLine) || /^Resumed session\b/i.test(cleanLine)) return "Hermes 已恢复上下文";
+  if (/Creating new local environment/i.test(cleanLine)) return "Hermes 正在准备工具环境";
+  if (/local environment ready/i.test(cleanLine)) return "工具环境已就绪";
+  if (/tool .* completed/i.test(cleanLine)) return cleanLine.replace(/^.*?(tool .* completed.*)$/i, "$1");
+  if (/OpenAI client created|chat_completion_stream_request/i.test(cleanLine)) return "Hermes 正在请求模型";
+  if (/OpenAI client closed|stream_request_complete/i.test(cleanLine)) return "模型响应完成";
+  if (/Turn ended/i.test(cleanLine)) return "Hermes 已完成本轮推理";
+  return cleanLine;
+}
+
 function isHermesProgressLine(line) {
   if (!line) return false;
-  if (isHermesControlLine(line)) return false;
   if (/^(Query|Session|Duration|Messages|Resume this session with|hermes --resume)\b/i.test(line)) return false;
   if (/^⚕\s*Hermes$/i.test(line)) return false;
+  if (/^\d+\s*\(\d+\s+user/i.test(line)) return false;
   if (line.length > 120) return false;
-  return (
-    /Initializing agent/i.test(line) ||
-    /Creating new local environment/i.test(line) ||
-    /local environment ready/i.test(line) ||
-    /tool .* completed/i.test(line) ||
-    /Running|Calling|Executing|Generating|Thinking|正在|初始化|工具|完成/i.test(line)
-  );
+  return true;
 }
 
 function runHermesCommand(args, onProgress) {
