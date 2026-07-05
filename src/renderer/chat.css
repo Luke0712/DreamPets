@@ -231,8 +231,21 @@ body {
 }
 
 .thinking {
+  max-height: 208px;
   padding: 3px 2px;
+  overflow-x: hidden;
+  overflow-y: auto;
   color: #334256;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  scrollbar-width: none;
+}
+
+.thinking::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .thinking::after {
@@ -252,14 +265,62 @@ body {
   display: none;
 }
 
+.reply-content {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.reply-content::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 .reply-box p {
   max-height: none;
   min-height: 0;
   margin: 0;
-  overflow: auto;
   color: #1d2430;
   line-height: 1.5;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  scrollbar-width: none;
+}
+
+.reply-box p::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.reply-images {
+  display: grid;
+  gap: 8px;
+}
+
+.reply-images[hidden] {
+  display: none;
+}
+
+.reply-images img {
+  display: block;
+  width: 100%;
+  max-height: 150px;
+  border-radius: 6px;
+  object-fit: contain;
+  background: rgba(35, 48, 64, 0.04);
+}
+
+.reply-image-error {
+  padding: 8px;
+  border-radius: 6px;
+  color: #687386;
+  background: rgba(35, 48, 64, 0.05);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .reply-box button {

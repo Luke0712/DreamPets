@@ -15,11 +15,21 @@ petImage.addEventListener("error", () => {
   console.log(`pet image failed ${window.pet.imageUrl}`);
 });
 
-petImage.src = window.pet.imageUrl;
+setPetImage("idle");
+
+window.pet.getPetState().then(setPetImage);
+window.pet.onPetVisualState(setPetImage);
 
 window.pet.onScale((scale) => {
   document.documentElement.style.setProperty("--pet-scale", scale);
 });
+
+function setPetImage(state) {
+  const nextSrc = state === "thinking" ? window.pet.thinkingImageUrl : window.pet.imageUrl;
+  if (petImage.src !== nextSrc) {
+    petImage.src = nextSrc;
+  }
+}
 
 window.addEventListener("contextmenu", (event) => {
   event.preventDefault();

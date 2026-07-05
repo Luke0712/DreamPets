@@ -2,8 +2,13 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("pet", {
   imageUrl: "pet://current",
+  thinkingImageUrl: "pet://thinking",
   onScale: (callback) => {
     ipcRenderer.on("pet:scale", (_event, scale) => callback(scale));
+  },
+  getPetState: () => ipcRenderer.invoke("pet:get-state"),
+  onPetVisualState: (callback) => {
+    ipcRenderer.on("pet:visual-state", (_event, state) => callback(state));
   },
   onWindowBlur: (callback) => {
     ipcRenderer.on("pet:window-blur", callback);

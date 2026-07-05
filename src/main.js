@@ -3,7 +3,7 @@ const { spawn } = require("child_process");
 const fs = require("fs/promises");
 const pty = require("node-pty");
 const path = require("path");
-const { baseHeight, baseWidth, imagePath } = require("./petConfig");
+const { baseHeight, baseWidth, imagePath, thinkingImagePath } = require("./petConfig");
 
 let petWindow;
 let settingsWindow;
@@ -18,6 +18,7 @@ let dragState = null;
 let dragTimer = null;
 let conversationHistory = [];
 let replyPayload = null;
+let petVisualState = "idle";
 
 const chatPanelWidth = 320;
 const replyPanelHeight = 260;
@@ -53,6 +54,7 @@ const hermesPythonPath = "/Users/luke/.hermes/hermes-agent/venv/bin/python";
 const hermesModuleName = "hermes_cli.main";
 const hermesTimeoutMs = 180000;
 const maxHermesPromptLength = 120000;
+const maxHermesProgressLines = 18;
 const imageMimeTypes = new Map([
   [".png", "image/png"],
   [".jpg", "image/jpeg"],
@@ -322,11 +324,12 @@ app.whenReady().then(() => {
     app.setActivationPolicy?.("accessory");
   }
 
-  protocol.handle("pet", async () => {
-    const image = await fs.readFile(imagePath);
+  protocol.handle("pet", async (request) => {
+    const imageFilePath = getPetImagePath(new URL(request.url).pathname);
+    const image = await fs.readFile(imageFilePath);
     return new Response(image, {
       headers: {
-        "Content-Type": getContentType(imagePath),
+        "Content-Type": getContentType(imageFilePath),
         "Cache-Control": "no-store"
       }
     });
@@ -359,6 +362,7 @@ ipcMain.handle("chat:prepare-dropped-files", (_event, filePaths) => prepareDropp
 ipcMain.handle("chat:send", (_event, message) => sendChatMessage(message));
 ipcMain.handle("chat:submit", (_event, message) => submitChatMessage(message));
 ipcMain.handle("reply:get-current", () => replyPayload);
+ipcMain.handle("pet:get-state", () => petVisualState);
 ipcMain.on("pet:show-menu", () => showPetMenu());
 ipcMain.on("pet:open-input", () => openInputWindow());
 ipcMain.on("chat:close-input", () => closeInputWindow());
@@ -662,6 +666,20 @@ function sendTerminalOutput(chunk) {
   }
 }
 
+function setPetVisualState(state) {
+  const nextState = state === "thinking" ? "thinking" : "idle";
+  if (petVisualState === nextState) return;
+  petVisualState = nextState;
+  if (petWindow && !petWindow.isDestroyed()) {
+    petWindow.webContents.send("pet:visual-state", petVisualState);
+  }
+}
+
+function getPetImagePath(urlPathname) {
+  if (urlPathname.includes("thinking")) return thinkingImagePath;
+  return imagePath;
+}
+
 function stopTerminalProcess() {
   if (terminalProcess) {
     terminalProcess.kill();
@@ -841,15 +859,18 @@ async function sendChatMessage(payload) {
 
 async function submitChatMessage(payload) {
   closeInputWindow();
-  openReplyWindow("思考中", true);
+  setPetVisualState("thinking");
+  openReplyWindow("Hermes 正在接收消息", true);
 
   try {
     const reply = await sendChatMessage(payload);
     updateReplyWindow(reply);
+    setPetVisualState("idle");
     return reply;
   } catch (error) {
     const errorMessage = error?.message || "对话请求失败，请检查设置后再试。";
     updateReplyWindow(errorMessage);
+    setPetVisualState("idle");
     return errorMessage;
   }
 }
@@ -932,7 +953,6 @@ async function runHermesChat(prompt, attachments) {
     "chat",
     "-q",
     prompt,
-    "-Q",
     "--accept-hooks",
     "--yolo",
     "--source",
@@ -947,11 +967,13 @@ async function runHermesChat(prompt, attachments) {
     args.push("--image", imagePath);
   }
 
-  let result = await runHermesCommand(args);
+  updateThinkingProgress(sessionId ? "Hermes 正在恢复会话" : "Hermes 正在启动会话");
+  let result = await runHermesCommand(args, updateHermesProgressFromChunk);
   if (sessionId && isMissingHermesSession(result)) {
     await clearHermesSessionId();
     const retryArgs = args.filter((arg, index) => arg !== "--resume" && args[index - 1] !== "--resume");
-    result = await runHermesCommand(retryArgs);
+    updateThinkingProgress("原会话不可用，Hermes 正在新建会话");
+    result = await runHermesCommand(retryArgs, updateHermesProgressFromChunk);
   }
   const parsed = parseHermesOutput([result.stdout, result.stderr].filter(Boolean).join("\n"));
   if (parsed.sessionId) {
@@ -969,7 +991,56 @@ function isMissingHermesSession(result) {
   return result.code !== 0 && /No session found matching/i.test([result.stdout, result.stderr].filter(Boolean).join("\n"));
 }
 
-function runHermesCommand(args) {
+function updateHermesProgressFromChunk(chunk) {
+  const progressLines = String(chunk || "")
+    .split(/\r?\n/)
+    .map(cleanHermesOutputLine)
+    .filter(isHermesProgressLine);
+  for (const line of progressLines) {
+    updateThinkingProgress(line);
+  }
+}
+
+function updateThinkingProgress(line) {
+  if (!replyPayload?.thinking) return;
+  const currentLines = String(replyPayload.message || "")
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const nextLine = String(line || "").trim();
+  if (!nextLine || currentLines[currentLines.length - 1] === nextLine) return;
+  const nextLines = [...currentLines, nextLine].slice(-maxHermesProgressLines);
+  replyPayload = {
+    message: nextLines.join("\n"),
+    thinking: true
+  };
+  pushReplyPayload();
+}
+
+function cleanHermesOutputLine(line) {
+  return String(line || "")
+    .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "")
+    .replace(/[╭╮╯╰─│]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isHermesProgressLine(line) {
+  if (!line) return false;
+  if (isHermesControlLine(line)) return false;
+  if (/^(Query|Session|Duration|Messages|Resume this session with|hermes --resume)\b/i.test(line)) return false;
+  if (/^⚕\s*Hermes$/i.test(line)) return false;
+  if (line.length > 120) return false;
+  return (
+    /Initializing agent/i.test(line) ||
+    /Creating new local environment/i.test(line) ||
+    /local environment ready/i.test(line) ||
+    /tool .* completed/i.test(line) ||
+    /Running|Calling|Executing|Generating|Thinking|正在|初始化|工具|完成/i.test(line)
+  );
+}
+
+function runHermesCommand(args, onProgress) {
   return new Promise((resolve, reject) => {
     const child = spawn(hermesPythonPath, args, {
       cwd: process.cwd(),
@@ -992,10 +1063,14 @@ function runHermesCommand(args) {
 
     child.stdin?.end();
     child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
+      const text = String(chunk);
+      stdout += text;
+      onProgress?.(text);
     });
     child.stderr.on("data", (chunk) => {
-      stderr += String(chunk);
+      const text = String(chunk);
+      stderr += text;
+      onProgress?.(text);
     });
     child.on("error", (error) => {
       if (settled) return;
@@ -1020,6 +1095,8 @@ function parseHermesOutput(output) {
   const lines = String(output || "").split(/\r?\n/);
   let sessionId = "";
   const messageLines = [];
+  let insideHermesBox = false;
+  const boxedMessageLines = [];
 
   for (const line of lines) {
     const sessionMatch = line.match(/^session_id:\s*(.+)$/);
@@ -1027,15 +1104,44 @@ function parseHermesOutput(output) {
       sessionId = sessionMatch[1].trim();
       continue;
     }
-    if (isHermesControlLine(line)) {
+    const cleanLine = cleanHermesOutputLine(line);
+    const resumeMatch = cleanLine.match(/^Resume this session with:\s*hermes --resume\s+(.+)$/i);
+    const resumeCommandMatch = cleanLine.match(/^hermes --resume\s+(.+)$/i);
+    const sessionLabelMatch = cleanLine.match(/^Session:\s*(.+)$/i);
+    if (resumeMatch) {
+      sessionId = resumeMatch[1].trim();
       continue;
     }
-    messageLines.push(line);
+    if (resumeCommandMatch) {
+      sessionId = resumeCommandMatch[1].trim();
+      continue;
+    }
+    if (sessionLabelMatch) {
+      sessionId = sessionLabelMatch[1].trim();
+      continue;
+    }
+    if (/⚕\s*Hermes/i.test(cleanLine)) {
+      insideHermesBox = true;
+      continue;
+    }
+    if (insideHermesBox && /^╰|^Resume this session with:|^Session:|^Duration:|^Messages:/i.test(String(line).trim())) {
+      insideHermesBox = false;
+    }
+    if (insideHermesBox && cleanLine) {
+      boxedMessageLines.push(cleanLine);
+      continue;
+    }
+    if (isHermesControlLine(cleanLine) || isHermesProgressLine(cleanLine)) {
+      continue;
+    }
+    if (cleanLine) {
+      messageLines.push(cleanLine);
+    }
   }
 
   return {
     sessionId,
-    message: messageLines.join("\n").trim()
+    message: (boxedMessageLines.length > 0 ? boxedMessageLines : messageLines).join("\n").trim()
   };
 }
 

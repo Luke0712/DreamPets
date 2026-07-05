@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';"
+      content="default-src 'self'; img-src 'self' https: http: data: file:; script-src 'self'; style-src 'self' 'unsafe-inline';"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>桌宠回复</title>
@@ -14,7 +14,10 @@
     <article class="reply-panel">
       <div id="thinking" class="thinking" hidden>思考中</div>
       <section id="replyBox" class="reply-box" hidden>
-        <p id="replyText"></p>
+        <div id="replyContent" class="reply-content">
+          <p id="replyText"></p>
+          <div id="replyImages" class="reply-images"></div>
+        </div>
         <button id="ackReply" type="button">我知道了</button>
       </section>
     </article>
