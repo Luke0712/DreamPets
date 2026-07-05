@@ -6,6 +6,7 @@ let selectedTarget = null;
 let selectedSkillId = null;
 let skills = [];
 let attachments = [];
+let activeMentionIndex = 0;
 
 loadMentionTargets();
 requestAnimationFrame(() => chatInput.focus());
@@ -76,9 +77,24 @@ chatForm.addEventListener("drop", async (event) => {
 
 chatInput.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !mentionMenu.hidden) {
-    mentionMenu.hidden = true;
+    closeMentionMenu();
     event.preventDefault();
     return;
+  }
+
+  if (!mentionMenu.hidden && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+    moveMentionSelection(event.key === "ArrowDown" ? 1 : -1);
+    event.preventDefault();
+    return;
+  }
+
+  if (!mentionMenu.hidden && event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+    const selectedButton = getMentionButtons()[activeMentionIndex];
+    if (selectedButton) {
+      chooseMention(selectedButton);
+      event.preventDefault();
+      return;
+    }
   }
 
   if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
@@ -94,13 +110,7 @@ mentionMenu.addEventListener("click", (event) => {
   const button = event.target.closest("[data-mention]");
   if (!button) return;
 
-  selectedTarget = button.dataset.mention;
-  selectedSkillId = button.dataset.skillId || null;
-  chatInput.value = `@${selectedTarget} `;
-  mentionMenu.hidden = true;
-  resizeInput();
-  chatInput.focus();
-  chatInput.setSelectionRange(chatInput.value.length, chatInput.value.length);
+  chooseMention(button);
 });
 
 chatInput.addEventListener("blur", () => {
@@ -124,12 +134,13 @@ function syncMentionMenu() {
   const shouldShowMenu = /(^|\s)@$/.test(beforeCursor);
 
   if (shouldShowMenu) {
-    renderMentionMenu();
-    mentionMenu.hidden = false;
+    openMentionMenu();
+    resizeInput();
   } else if (!findMentionedSkillId(value)) {
-    mentionMenu.hidden = true;
+    closeMentionMenu();
     selectedTarget = null;
     selectedSkillId = null;
+    resizeInput();
   }
 }
 
@@ -141,6 +152,7 @@ async function loadMentionTargets() {
 
 function renderMentionMenu() {
   mentionMenu.replaceChildren();
+  activeMentionIndex = 0;
 
   if (skills.length === 0) {
     const empty = document.createElement("div");
@@ -156,6 +168,7 @@ function renderMentionMenu() {
     button.title = skill.path;
     mentionMenu.append(button);
   }
+  syncActiveMention();
 }
 
 function createMentionButton(name) {
@@ -173,6 +186,46 @@ function createMentionButton(name) {
 
   button.append(mark, title);
   return button;
+}
+
+function openMentionMenu() {
+  renderMentionMenu();
+  mentionMenu.hidden = false;
+  syncActiveMention();
+}
+
+function closeMentionMenu() {
+  mentionMenu.hidden = true;
+  activeMentionIndex = 0;
+  syncActiveMention();
+}
+
+function getMentionButtons() {
+  return [...mentionMenu.querySelectorAll("[data-mention]")];
+}
+
+function moveMentionSelection(delta) {
+  const buttons = getMentionButtons();
+  if (buttons.length === 0) return;
+  activeMentionIndex = (activeMentionIndex + delta + buttons.length) % buttons.length;
+  syncActiveMention();
+  buttons[activeMentionIndex].scrollIntoView({ block: "nearest" });
+}
+
+function syncActiveMention() {
+  getMentionButtons().forEach((button, index) => {
+    button.classList.toggle("is-active", index === activeMentionIndex);
+  });
+}
+
+function chooseMention(button) {
+  selectedTarget = button.dataset.mention;
+  selectedSkillId = button.dataset.skillId || null;
+  chatInput.value = `@${selectedTarget} `;
+  closeMentionMenu();
+  resizeInput();
+  chatInput.focus();
+  chatInput.setSelectionRange(chatInput.value.length, chatInput.value.length);
 }
 
 function findMentionedSkillId(message) {

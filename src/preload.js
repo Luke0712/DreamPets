@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld("pet", {
   sendChat: (message) => ipcRenderer.invoke("chat:send", message),
   submitChat: (message) => ipcRenderer.invoke("chat:submit", message),
   getCurrentReply: () => ipcRenderer.invoke("reply:get-current"),
+  replyReady: () => ipcRenderer.send("reply:ready"),
   onReplyUpdate: (callback) => {
     ipcRenderer.on("reply:update", (_event, payload) => callback(payload));
   },

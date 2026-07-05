@@ -10,6 +10,7 @@ renderReply({
 });
 
 loadCurrentReply();
+window.pet.replyReady();
 
 window.pet.onReplyUpdate((payload) => {
   renderReply(payload);

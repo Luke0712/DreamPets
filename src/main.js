@@ -22,10 +22,11 @@ let replyPayload = null;
 const chatPanelWidth = 320;
 const replyPanelHeight = 260;
 const inputPanelHeight = 64;
-const maxInputPanelHeight = 148;
+const maxInputPanelHeight = 300;
 const terminalWidth = 640;
 const terminalHeight = 360;
 const maxConversationMessages = 16;
+const dragThreshold = 4;
 const trayIconPath = path.join(__dirname, "..", "build", "tray-icon.png");
 const maxSkillFiles = 24;
 const maxSkillContextLength = 36000;
@@ -363,6 +364,7 @@ ipcMain.on("pet:open-input", () => openInputWindow());
 ipcMain.on("chat:close-input", () => closeInputWindow());
 ipcMain.on("chat:close-reply", () => closeReplyWindow());
 ipcMain.on("chat:resize-input", (_event, height) => resizeInputWindow(height));
+ipcMain.on("reply:ready", () => pushReplyPayload());
 ipcMain.on("terminal:write", (_event, data) => {
   if (!terminalProcess) {
     startTerminalProcess();
@@ -387,7 +389,8 @@ ipcMain.on("pet:drag-start", (_event, point) => {
     mouseY: point.y,
     windowBounds: petWindow.getBounds(),
     lastX: null,
-    lastY: null
+    lastY: null,
+    active: false
   };
   startDragLoop();
 });
@@ -424,6 +427,13 @@ function updateDragPosition(point) {
 
   const nextX = dragState.windowBounds.x + Math.round(point.x - dragState.mouseX);
   const nextY = dragState.windowBounds.y + Math.round(point.y - dragState.mouseY);
+  if (!dragState.active) {
+    const moved =
+      Math.abs(point.x - dragState.mouseX) > dragThreshold ||
+      Math.abs(point.y - dragState.mouseY) > dragThreshold;
+    if (!moved) return;
+    dragState.active = true;
+  }
   if (dragState.lastX === nextX && dragState.lastY === nextY) return;
 
   dragState.lastX = nextX;
@@ -443,10 +453,13 @@ function openInputWindow() {
   }
 
   inputWindow = createOverlayWindow(inputPanelHeight);
+  const currentInputWindow = inputWindow;
   inputWindow.loadFile(path.join(__dirname, "renderer", "chat-input.html"));
   inputWindow.on("blur", closeInputWindow);
   inputWindow.on("closed", () => {
-    inputWindow = null;
+    if (inputWindow === currentInputWindow) {
+      inputWindow = null;
+    }
   });
   positionChatWindows();
 }
@@ -459,16 +472,28 @@ function openReplyWindow(message, isThinking = false) {
     thinking: isThinking
   };
   replyWindow = createOverlayWindow(replyPanelHeight);
+  const currentReplyWindow = replyWindow;
   loadReplyWindow();
   replyWindow.on("closed", () => {
-    replyWindow = null;
+    if (replyWindow === currentReplyWindow) {
+      replyWindow = null;
+    }
+  });
+  replyWindow.webContents.on("did-finish-load", () => {
+    if (replyWindow !== currentReplyWindow) return;
+    pushReplyPayload();
+    positionChatWindows();
   });
   positionChatWindows();
 }
 
 function loadReplyWindow() {
   if (!replyWindow || replyWindow.isDestroyed()) return;
-  replyWindow.loadFile(path.join(__dirname, "renderer", "chat-reply.html"));
+  replyWindow.loadFile(path.join(__dirname, "renderer", "chat-reply.html"), {
+    query: {
+      thinking: String(Boolean(replyPayload?.thinking))
+    }
+  });
 }
 
 function createOverlayWindow(height) {
@@ -599,14 +624,36 @@ function submitTerminalInstruction(message) {
 }
 
 function updateReplyWindow(message) {
-  if (!replyWindow || replyWindow.isDestroyed()) return;
-
   replyPayload = {
     message,
     thinking: false
   };
+
+  if (!replyWindow || replyWindow.isDestroyed()) {
+    replyWindow = createOverlayWindow(replyPanelHeight);
+    const currentReplyWindow = replyWindow;
+    replyWindow.on("closed", () => {
+      if (replyWindow === currentReplyWindow) {
+        replyWindow = null;
+      }
+    });
+    replyWindow.webContents.on("did-finish-load", () => {
+      if (replyWindow !== currentReplyWindow) return;
+      pushReplyPayload();
+      positionChatWindows();
+    });
+  }
+
   loadReplyWindow();
+  setTimeout(pushReplyPayload, 50);
+  setTimeout(pushReplyPayload, 200);
+  setTimeout(pushReplyPayload, 600);
   positionChatWindows();
+}
+
+function pushReplyPayload() {
+  if (!replyWindow || replyWindow.isDestroyed() || !replyPayload) return;
+  replyWindow.webContents.send("reply:update", replyPayload);
 }
 
 function sendTerminalOutput(chunk) {

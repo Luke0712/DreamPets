@@ -34,6 +34,7 @@ window.addEventListener("mousedown", (event) => {
     y: event.screenY
   };
   isDragging = false;
+  window.pet.startDrag(pointerStart);
 });
 
 window.addEventListener("mousemove", (event) => {
@@ -43,7 +44,6 @@ window.addEventListener("mousemove", (event) => {
     Math.abs(event.screenY - pointerStart.y) > dragThreshold;
   if (!isDragging && moved) {
     isDragging = true;
-    window.pet.startDrag(pointerStart);
   }
   if (!isDragging) return;
   window.pet.moveDrag({ x: event.screenX, y: event.screenY });
@@ -58,8 +58,9 @@ window.addEventListener("mouseup", (event) => {
   window.pet.endDrag();
 });
 
-window.addEventListener("mouseleave", () => {
-  if (isDragging) return;
+window.addEventListener("mouseleave", (event) => {
+  if (pointerStart && (event.buttons & 1) !== 0) return;
   pointerStart = null;
+  isDragging = false;
   window.pet.endDrag();
 });
