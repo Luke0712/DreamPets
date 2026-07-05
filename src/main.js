@@ -1161,7 +1161,7 @@ function parseHermesOutput(output) {
       boxedMessageLines.push(cleanLine);
       continue;
     }
-    if (isHermesControlLine(cleanLine) || isHermesProgressLine(cleanLine)) {
+    if (isHermesControlLine(cleanLine) || isHermesMetadataLine(cleanLine)) {
       continue;
     }
     if (cleanLine) {
@@ -1173,6 +1173,10 @@ function parseHermesOutput(output) {
     sessionId,
     message: (boxedMessageLines.length > 0 ? boxedMessageLines : messageLines).join("\n").trim()
   };
+}
+
+function isHermesMetadataLine(line) {
+  return /^(Query|Session|Duration|Messages|Resume this session with|hermes --resume)\b/i.test(String(line || "").trim());
 }
 
 function isHermesControlLine(line) {
