@@ -1,4 +1,4 @@
-# QQ Desktop Pet
+# DreamPets
 
 一个最小 Electron 桌面宠物。当前默认站立形象使用：
 
