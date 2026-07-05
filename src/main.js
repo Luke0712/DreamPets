@@ -470,6 +470,7 @@ function openInputWindow() {
 
 function openReplyWindow(message, isThinking = false) {
   closeReplyWindow();
+  setPetVisualState(isThinking ? "thinking" : "idle");
 
   replyPayload = {
     message,
@@ -628,6 +629,7 @@ function submitTerminalInstruction(message) {
 }
 
 function updateReplyWindow(message) {
+  setPetVisualState("idle");
   replyPayload = {
     message,
     thinking: false
@@ -860,7 +862,7 @@ async function sendChatMessage(payload) {
 async function submitChatMessage(payload) {
   closeInputWindow();
   setPetVisualState("thinking");
-  openReplyWindow("Hermes 正在接收消息", true);
+  openReplyWindow("思考中", true);
 
   try {
     const reply = await sendChatMessage(payload);
@@ -967,7 +969,9 @@ async function runHermesChat(prompt, attachments) {
     args.push("--image", imagePath);
   }
 
-  updateThinkingProgress(sessionId ? "Hermes 正在恢复会话" : "Hermes 正在启动会话");
+  if (!sessionId) {
+    updateThinkingProgress("Hermes 正在启动会话");
+  }
   let progressTracker = createHermesProgressTracker();
   let result = await runHermesCommand(args, progressTracker.onChunk);
   progressTracker.flush();
@@ -1030,13 +1034,17 @@ function updateThinkingProgress(line) {
     .map((item) => item.trim())
     .filter(Boolean);
   const nextLine = String(line || "").trim();
-  if (!nextLine || currentLines[currentLines.length - 1] === nextLine) return;
+  if (!nextLine || isHiddenHermesProgressLine(nextLine) || currentLines[currentLines.length - 1] === nextLine) return;
   const nextLines = [...currentLines, nextLine].slice(-maxHermesProgressLines);
   replyPayload = {
     message: nextLines.join("\n"),
     thinking: true
   };
   pushReplyPayload();
+}
+
+function isHiddenHermesProgressLine(line) {
+  return /^(Hermes 正在接收消息|Hermes 正在恢复会话)$/i.test(String(line || "").trim());
 }
 
 function cleanHermesOutputLine(line) {
