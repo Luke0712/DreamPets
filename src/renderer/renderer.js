@@ -1,0 +1,65 @@
+const petImage = document.getElementById("pet");
+const petStage = document.querySelector(".pet-stage");
+
+let isDragging = false;
+let pointerStart = null;
+const dragThreshold = 4;
+
+petImage.addEventListener("load", () => {
+  document.body.classList.remove("image-error");
+  console.log(`pet image loaded ${petImage.naturalWidth}x${petImage.naturalHeight}`);
+});
+
+petImage.addEventListener("error", () => {
+  document.body.classList.add("image-error");
+  console.log(`pet image failed ${window.pet.imageUrl}`);
+});
+
+petImage.src = window.pet.imageUrl;
+
+window.pet.onScale((scale) => {
+  document.documentElement.style.setProperty("--pet-scale", scale);
+});
+
+window.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
+  window.pet.showMenu();
+});
+
+window.addEventListener("mousedown", (event) => {
+  if (event.button !== 0) return;
+  if (event.detail > 1) return;
+  pointerStart = {
+    x: event.screenX,
+    y: event.screenY
+  };
+  isDragging = false;
+});
+
+window.addEventListener("mousemove", (event) => {
+  if (!pointerStart || (event.buttons & 1) === 0) return;
+  const moved =
+    Math.abs(event.screenX - pointerStart.x) > dragThreshold ||
+    Math.abs(event.screenY - pointerStart.y) > dragThreshold;
+  if (!isDragging && moved) {
+    isDragging = true;
+    window.pet.startDrag(pointerStart);
+  }
+  if (!isDragging) return;
+  window.pet.moveDrag({ x: event.screenX, y: event.screenY });
+});
+
+window.addEventListener("mouseup", (event) => {
+  if (pointerStart && !isDragging && event.button === 0) {
+    window.pet.openInput();
+  }
+  pointerStart = null;
+  isDragging = false;
+  window.pet.endDrag();
+});
+
+window.addEventListener("mouseleave", () => {
+  if (isDragging) return;
+  pointerStart = null;
+  window.pet.endDrag();
+});

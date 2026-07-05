@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>桌宠回复</title>
+    <link rel="stylesheet" href="./chat.css" />
+  </head>
+  <body class="reply-body">
+    <article class="reply-panel">
+      <div id="thinking" class="thinking" hidden>思考中</div>
+      <section id="replyBox" class="reply-box" hidden>
+        <p id="replyText"></p>
+        <button id="ackReply" type="button">我知道了</button>
+      </section>
+    </article>
+    <script src="./chat-reply.js"></script>
+  </body>
+</html>

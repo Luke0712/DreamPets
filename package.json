@@ -1,0 +1,52 @@
+{
+  "name": "qq-desktop-pet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A tiny transparent desktop pet powered by Electron.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --mac dir",
+    "dist": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.luke.qq-desktop-pet",
+    "productName": "桌面宠物",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "build/icon.icns",
+      "build/tray-icon.png",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/node-pty/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.utilities",
+      "icon": "build/icon.icns",
+      "target": [
+        "dir",
+        "dmg"
+      ],
+      "extendInfo": {
+        "LSUIElement": true
+      }
+    },
+    "dmg": {
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "directories": {
+      "output": "dist"
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "node-pty": "^1.1.0"
+  }
+}

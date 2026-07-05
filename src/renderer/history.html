@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>会话历史</title>
+    <link rel="stylesheet" href="./history.css" />
+  </head>
+  <body>
+    <main class="history-shell">
+      <header class="history-header">
+        <h1>会话历史</h1>
+        <button id="clearHistory" type="button">清空会话</button>
+      </header>
+      <section id="historyList" class="history-list" aria-live="polite"></section>
+      <p id="emptyState" class="empty-state">还没有对话内容</p>
+    </main>
+    <script src="./history.js"></script>
+  </body>
+</html>

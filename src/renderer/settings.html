@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>桌宠设置</title>
+    <link rel="stylesheet" href="./settings.css" />
+  </head>
+  <body>
+    <form id="settingsForm" class="settings-form">
+      <header class="settings-header">
+        <h1>设置</h1>
+      </header>
+      <section class="settings-panel" id="skillsPanel">
+        <div class="skill-editor">
+          <label class="field">
+            <span>技能名称</span>
+            <input id="skillName" name="skillName" type="text" placeholder="例如：代码助手" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>技能文件夹</span>
+            <div class="folder-row">
+              <input id="skillPath" name="skillPath" type="text" placeholder="选择一个文件夹" autocomplete="off" readonly />
+              <button id="chooseSkillFolder" type="button">选择</button>
+            </div>
+          </label>
+          <button id="addSkill" class="secondary-button" type="button">添加技能</button>
+        </div>
+        <div class="skills-list-wrap">
+          <div class="skills-title">已添加技能</div>
+          <div id="skillsList" class="skills-list"></div>
+        </div>
+      </section>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+      <footer class="settings-actions">
+        <button id="cancelSettings" type="button">取消</button>
+        <button class="primary-button" type="submit">保存</button>
+      </footer>
+    </form>
+    <script src="./settings.js"></script>
+  </body>
+</html>

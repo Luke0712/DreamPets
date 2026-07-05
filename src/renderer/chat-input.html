@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>桌宠输入</title>
+    <link rel="stylesheet" href="./chat.css" />
+  </head>
+  <body class="input-body">
+    <form id="chatForm" class="chat-form">
+      <div id="droppedFiles" class="dropped-files" hidden></div>
+      <textarea id="chatInput" rows="1" placeholder="和我说点什么..." autocomplete="off"></textarea>
+      <div id="mentionMenu" class="mention-menu" hidden></div>
+    </form>
+    <script src="./chat-input.js"></script>
+  </body>
+</html>

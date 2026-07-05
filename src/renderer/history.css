@@ -1,0 +1,89 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  color: #1d2430;
+  background: #ffffff;
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.history-shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+  padding: 16px;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+.history-header h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.history-header button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(30, 45, 64, 0.14);
+  border-radius: 6px;
+  color: #39485c;
+  background: #ffffff;
+  font: inherit;
+}
+
+.history-list {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.history-message {
+  display: grid;
+  gap: 5px;
+  max-width: 88%;
+  padding: 10px 12px;
+  border: 1px solid rgba(30, 45, 64, 0.12);
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.history-message.is-user {
+  justify-self: end;
+  background: #eef6ff;
+}
+
+.history-message.is-assistant {
+  justify-self: start;
+  background: #ffffff;
+}
+
+.history-message strong {
+  font-size: 12px;
+  color: #526071;
+}
+
+.history-message p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.empty-state {
+  align-self: start;
+  margin: 0;
+  color: #6c7787;
+}

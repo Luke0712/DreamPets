@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>桌宠终端</title>
+    <link rel="stylesheet" href="./vendor/xterm/xterm.css" />
+    <link rel="stylesheet" href="./terminal.css" />
+  </head>
+  <body>
+    <main id="terminal" class="terminal-shell"></main>
+    <script src="./vendor/xterm/xterm.js"></script>
+    <script src="./vendor/xterm-addon-fit/addon-fit.js"></script>
+    <script src="./terminal.js"></script>
+  </body>
+</html>

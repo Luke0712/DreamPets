@@ -1,0 +1,28 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  color: #e6edf3;
+  background: #101318;
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.terminal-shell {
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  background: #0b0f14;
+}
+
+.xterm {
+  height: 100%;
+}
+
+.xterm .xterm-viewport {
+  background: transparent;
+}
