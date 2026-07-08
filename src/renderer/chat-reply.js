@@ -1,9 +1,11 @@
 const thinking = document.getElementById("thinking");
 const replyBox = document.getElementById("replyBox");
+const replyContent = document.getElementById("replyContent");
 const replyText = document.getElementById("replyText");
 const replyImages = document.getElementById("replyImages");
 const ackReply = document.getElementById("ackReply");
 const params = new URLSearchParams(window.location.search);
+let resizeReplyTimer = null;
 
 renderReply({
   message: params.get("message") || "思考中",
@@ -17,6 +19,8 @@ window.pet.onReplyUpdate((payload) => {
   renderReply(payload);
 });
 
+new ResizeObserver(scheduleReplyResize).observe(document.body);
+
 ackReply.addEventListener("click", () => {
   window.pet.closeReply();
 });
@@ -29,10 +33,11 @@ function renderReply(payload) {
   thinking.textContent = isThinking ? String(payload?.message || "思考中") : "";
   const message = isThinking ? "" : String(payload?.message || "");
   const imageUrls = extractImageUrls(message);
-  const visibleText = removeRenderedImageReferences(message).trim();
+  const visibleText = getVisibleReplyText(message, imageUrls.length > 0);
   replyText.textContent = visibleText;
   replyText.hidden = !visibleText;
   renderImages(imageUrls);
+  scheduleReplyResize();
 }
 
 async function loadCurrentReply() {
@@ -87,6 +92,37 @@ function removeRenderedImageReferences(message) {
     .replace(/\n{3,}/g, "\n\n");
 }
 
+function getVisibleReplyText(message, hasImages) {
+  const text = removeRenderedImageReferences(message);
+  if (!hasImages) {
+    return text.trim();
+  }
+
+  return text
+    .split("\n")
+    .filter((line) => !isImageMetadataLine(line))
+    .join("\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function isImageMetadataLine(line) {
+  const text = String(line || "").trim();
+  if (!text) return false;
+
+  return [
+    /^(?:模型|model)\s*[:：]/i,
+    /^(?:尺寸|size|resolution|分辨率)\s*[:：]/i,
+    /^(?:文件大小|大小|bytes?)\s*[:：]/i,
+    /^(?:保存(?:到|为|路径)?|目标文件|文件路径|本地路径|输出文件|落盘)\s*[:：]/i,
+    /^(?:baseurl|endpoint|url|路径)\s*[:：]/i,
+    /^\d+(?:\.\d+)?\s*(?:bytes?|kb|mb)$/i,
+    /^\d{2,5}\s*[x×]\s*\d{2,5}$/i,
+    /^gpt[-_\w.]+$/i
+  ].some((pattern) => pattern.test(text));
+}
+
 function renderImages(imageUrls) {
   replyImages.replaceChildren();
   replyImages.hidden = imageUrls.length === 0;
@@ -102,14 +138,45 @@ function renderImages(imageUrls) {
     });
     image.addEventListener("error", () => {
       image.replaceWith(createImageError(imageUrl));
+      scheduleReplyResize();
     });
+    image.addEventListener("load", scheduleReplyResize);
     replyImages.append(image);
   }
+
+  scheduleReplyResize();
 }
 
 function createImageError(imageUrl) {
   const error = document.createElement("div");
   error.className = "reply-image-error";
-  error.textContent = `图片无法加载：${imageUrl}`;
+  const title = document.createElement("strong");
+  title.textContent = "图片无法加载";
+  const detail = document.createElement("span");
+  detail.textContent = getImageName(imageUrl);
+  detail.title = imageUrl;
+  error.append(title, detail);
   return error;
+}
+
+function getImageName(imageUrl) {
+  try {
+    const url = new URL(imageUrl);
+    return decodeURIComponent(url.pathname.split("/").filter(Boolean).at(-1) || imageUrl);
+  } catch {
+    return String(imageUrl || "").split("/").filter(Boolean).at(-1) || "未知图片";
+  }
+}
+
+function scheduleReplyResize() {
+  clearTimeout(resizeReplyTimer);
+  resizeReplyTimer = setTimeout(() => {
+    const bodyPadding = 16;
+    const panelPaddingAndBorder = 26;
+    const boxGap = 10;
+    const buttonHeight = ackReply.hidden || replyBox.hidden ? 0 : ackReply.offsetHeight;
+    const contentHeight = replyBox.hidden ? thinking.scrollHeight : replyContent.scrollHeight + boxGap + buttonHeight;
+    const height = Math.ceil(bodyPadding + panelPaddingAndBorder + contentHeight);
+    window.pet.resizeReply(height);
+  }, 20);
 }

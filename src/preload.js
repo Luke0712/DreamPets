@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld("pet", {
   closeInput: () => ipcRenderer.send("chat:close-input"),
   resizeInput: (height) => ipcRenderer.send("chat:resize-input", height),
   closeReply: () => ipcRenderer.send("chat:close-reply"),
+  resizeReply: (height) => ipcRenderer.send("chat:resize-reply", height),
   getPathForFile: (file) => webUtils.getPathForFile(file),
   prepareDroppedFiles: (filePaths) => ipcRenderer.invoke("chat:prepare-dropped-files", filePaths),
   sendChat: (message) => ipcRenderer.invoke("chat:send", message),

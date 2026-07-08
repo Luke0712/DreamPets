@@ -231,15 +231,25 @@ body {
 }
 
 .reply-panel {
-  max-height: 232px;
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
   padding: 12px;
   border: 1px solid rgba(31, 92, 154, 0.14);
   border-radius: 8px;
   background: rgba(248, 251, 255, 0.98);
 }
 
+.is-thinking .reply-panel {
+  align-self: end;
+  height: auto;
+}
+
 .thinking {
-  max-height: 208px;
+  align-self: start;
+  max-height: 84px;
   padding: 3px 2px;
   overflow-x: hidden;
   overflow-y: auto;
@@ -264,8 +274,11 @@ body {
 .reply-box {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
-  gap: 9px;
-  max-height: 208px;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 .is-thinking .reply-box,
@@ -277,6 +290,8 @@ body {
   display: grid;
   gap: 8px;
   min-height: 0;
+  max-height: 100%;
+  align-content: start;
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: none;
@@ -308,6 +323,7 @@ body {
   display: grid;
   gap: 8px;
   justify-items: start;
+  min-width: 0;
 }
 
 .reply-images[hidden] {
@@ -322,27 +338,52 @@ body {
   justify-self: start;
   border-radius: 6px;
   object-fit: contain;
-  background: rgba(226, 232, 240, 0.5);
+  background: #ffffff;
+  box-shadow: 0 0 0 1px rgba(104, 115, 134, 0.12);
 }
 
 .reply-image-error {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
   padding: 8px;
   border-radius: 6px;
+  border: 1px solid rgba(104, 115, 134, 0.14);
   color: #687386;
   background: rgba(35, 48, 64, 0.05);
   font-size: 12px;
+  line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.reply-image-error strong {
+  color: #526072;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.reply-image-error span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .reply-box button {
   justify-self: center;
   min-height: 30px;
-  padding: 0 11px;
+  margin-bottom: 2px;
+  padding: 0 12px;
   border: 1px solid rgba(47, 125, 209, 0.22);
   border-radius: 8px;
   color: #1d5f9f;
   background: #eef6ff;
   font: inherit;
+}
+
+.reply-box button:hover {
+  border-color: rgba(47, 125, 209, 0.36);
+  background: #e4f1ff;
 }
 
 @keyframes thinking-dots {

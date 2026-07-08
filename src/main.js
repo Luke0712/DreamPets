@@ -24,6 +24,11 @@ let thinkingStartedAt = 0;
 
 const chatPanelWidth = 320;
 const replyPanelHeight = 260;
+const thinkingReplyPanelHeight = 96;
+const minReplyPanelHeight = 118;
+const minThinkingReplyPanelHeight = 74;
+const maxReplyPanelHeight = 620;
+const maxThinkingReplyPanelHeight = 110;
 const inputPanelHeight = 64;
 const maxInputPanelHeight = 300;
 const terminalWidth = 640;
@@ -392,6 +397,7 @@ ipcMain.on("pet:open-input", () => openInputWindow());
 ipcMain.on("chat:close-input", () => closeInputWindow());
 ipcMain.on("chat:close-reply", () => closeReplyWindow());
 ipcMain.on("chat:resize-input", (_event, height) => resizeInputWindow(height));
+ipcMain.on("chat:resize-reply", (_event, height) => resizeReplyWindow(height));
 ipcMain.on("reply:ready", () => pushReplyPayload());
 ipcMain.on("terminal:write", (_event, data) => {
   if (!terminalProcess) {
@@ -505,7 +511,7 @@ function openReplyWindow(message, isThinking = false) {
   } else {
     stopThinkingTimer();
   }
-  replyWindow = createOverlayWindow(replyPanelHeight);
+  replyWindow = createOverlayWindow(isThinking ? thinkingReplyPanelHeight : replyPanelHeight);
   const currentReplyWindow = replyWindow;
   loadReplyWindow();
   replyWindow.on("closed", () => {
@@ -573,7 +579,13 @@ function positionChatWindows(nextPetBounds) {
   }
 
   if (replyWindow && !replyWindow.isDestroyed()) {
-    const y = petBounds.y - replyPanelHeight + 8;
+    const replyBounds = replyWindow.getBounds();
+    const maxReplyHeight = getMaxReplyWindowHeight(petBounds);
+    const replyHeight = Math.min(replyBounds.height || replyPanelHeight, maxReplyHeight);
+    if (replyBounds.height !== replyHeight) {
+      replyWindow.setSize(replyBounds.width, replyHeight, false);
+    }
+    const y = Math.max(workArea.y + 8, petBounds.y - replyHeight + 8);
     replyWindow.setPosition(x, y, false);
   }
 
@@ -618,6 +630,33 @@ function resizeInputWindow(height) {
     inputWindow.setSize(bounds.width, nextHeight, false);
     positionChatWindows();
   }
+}
+
+function resizeReplyWindow(height) {
+  if (!replyWindow || replyWindow.isDestroyed()) return;
+  const minHeight = replyPayload?.thinking ? minThinkingReplyPanelHeight : minReplyPanelHeight;
+  const fallbackHeight = replyPayload?.thinking ? thinkingReplyPanelHeight : replyPanelHeight;
+  const maxHeight = replyPayload?.thinking ? maxThinkingReplyPanelHeight : getMaxReplyWindowHeight();
+  const nextHeight = Math.max(
+    minHeight,
+    Math.min(Math.ceil(Number(height) || fallbackHeight), maxHeight)
+  );
+  const bounds = replyWindow.getBounds();
+  if (bounds.height !== nextHeight) {
+    replyWindow.setSize(bounds.width, nextHeight, false);
+    positionChatWindows();
+  }
+}
+
+function getMaxReplyWindowHeight(nextPetBounds) {
+  if (!petWindow || petWindow.isDestroyed()) {
+    return maxReplyPanelHeight;
+  }
+
+  const petBounds = nextPetBounds || petWindow.getBounds();
+  const workArea = screen.getDisplayMatching(petBounds).workArea;
+  const availableAbovePet = petBounds.y - workArea.y;
+  return Math.max(minReplyPanelHeight, Math.min(maxReplyPanelHeight, availableAbovePet));
 }
 
 function startTerminalProcess() {
